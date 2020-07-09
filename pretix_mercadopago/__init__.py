@@ -14,7 +14,7 @@ class PluginMeli(PluginConfig):
 
     class PretixPluginMeta:
         name = gettext_lazy('Mercado Pago Plugin')
-        author = 'FOSS4G Teams'
+        author = 'FOSS4G team'
         description = gettext_lazy('Plugin para MercadoPago como medio de pago para las entradas.')
         visible = True
         version = __version__
