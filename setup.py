@@ -41,6 +41,6 @@ setup(
     cmdclass=cmdclass,
     entry_points="""
 [pretix.plugin]
-pretix_mercadopago=pretix_mercadopago:PretixPluginMeta
+pretix-_mercadopago=pretixi_mercadopago:PretixPluginMeli
 """,
 )

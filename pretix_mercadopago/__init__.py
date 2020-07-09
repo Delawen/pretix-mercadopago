@@ -8,13 +8,13 @@ except ImportError:
 __version__ = '1.0.0'
 
 
-class PluginApp(PluginConfig):
-    name = 'pretix_mercadopago'
+class PluginMeli(PluginConfig):
+    name = 'pretix-mercadopago'
     verbose_name = 'Mercado Pago Plugin'
 
-    class PretixPluginMeta:
+    class PretixPluginMeli:
         name = gettext_lazy('Mercado Pago Plugin')
-        author = 'Manuel Retamozo'
+        author = 'FOSS4G Teams'
         description = gettext_lazy('Plugin para MercadoPago como medio de pago para las entradas.')
         visible = True
         version = __version__
@@ -25,4 +25,4 @@ class PluginApp(PluginConfig):
         from . import signals  # NOQA
 
 
-default_app_config = 'pretix_mercadopago.PluginApp'
+default_app_config = 'pretix-mercadopago.PluginMeli'
