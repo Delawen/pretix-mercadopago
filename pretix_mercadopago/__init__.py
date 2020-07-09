@@ -9,10 +9,10 @@ __version__ = '1.0.0'
 
 
 class PluginMeli(PluginConfig):
-    name = 'pretix-mercadopago'
+    name = 'pretix_mercadopago'
     verbose_name = 'Mercado Pago Plugin'
 
-    class PretixPluginMeli:
+    class PretixPluginMeta:
         name = gettext_lazy('Mercado Pago Plugin')
         author = 'FOSS4G Teams'
         description = gettext_lazy('Plugin para MercadoPago como medio de pago para las entradas.')
@@ -25,4 +25,4 @@ class PluginMeli(PluginConfig):
         from . import signals  # NOQA
 
 
-default_app_config = 'pretix-mercadopago.PluginMeli'
+default_app_config = 'pretix_mercadopago.PluginMeli'
