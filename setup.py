@@ -35,7 +35,7 @@ setup(
     author_email='manuel@retamozo.com.ar',
     license='Apache',
 
-    install_requires=[],
+    install_requires=['mercadopago'],
     packages=find_packages(exclude=['tests', 'tests.*']),
     include_package_data=True,
     cmdclass=cmdclass,
