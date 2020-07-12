@@ -24,5 +24,7 @@ class PluginMeli(PluginConfig):
     def ready(self):
         from . import signals  # NOQA
 
+    def installed(self, event):
+        pass  # Your code here
 
 default_app_config = 'pretix_mercadopago.PluginMeli'
