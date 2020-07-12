@@ -11,6 +11,6 @@ https://docs.pretix.eu/en/latest/plugins/index.html
 
 1. SDK MercadoPago Python:
 https://github.com/mercadopago/sdk-python
-
+Documentación más actualizada https://pypi.org/project/mercadopago/
 
 
