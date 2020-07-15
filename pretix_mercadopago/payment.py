@@ -395,7 +395,7 @@ class Mercadopago(BasePaymentProvider):
                 retry = False
         except KeyError:
             pass
-        template = get_template('pretixplugins/paypal/pending.html')
+        template = get_template('pretix_mercadopago/pending.html')
         ctx = {'request': request, 'event': self.event, 'settings': self.settings,
                'retry': retry, 'order': payment.order}
         return template.render(ctx)
