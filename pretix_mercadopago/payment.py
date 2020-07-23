@@ -24,7 +24,7 @@ from pretix.base.settings import SettingsSandbox
 from pretix.helpers.urls import build_absolute_uri as build_global_uri
 from pretix.multidomain.urlreverse import build_absolute_uri
 
-logger = logging.getLogger('pretix.plugins.meli')
+logger = logging.getLogger('pretix.plugins.mercadopago')
 
 SUPPORTED_CURRENCIES = ['ARS', 'BRL', 'CLP','MXN','COP','PEN','UYU']
 # ARS Peso argentino.
@@ -39,7 +39,7 @@ LOCAL_ONLY_CURRENCIES = ['ARS']
 
 
 class Mercadopago(BasePaymentProvider):
-    identifier = 'mercadopago'
+    identifier = 'pretix_mercadopago'
     verbose_name = _('MercadoPago')
     payment_form_fields = OrderedDict([
     ])
@@ -176,7 +176,7 @@ class Mercadopago(BasePaymentProvider):
         return super().is_allowed(request, total) and self.event.currency in SUPPORTED_CURRENCIES
 
     def init_api(self):
-        if self.settings.connect_client_id and not self.settings.secret:
+        if self.settings.get('client_id') and not self.settings.get('secret'):
             mp = mercadopago.MP(self.settings.get('client_id'))
         else:
             mp = mercadopago.MP(self.settings.get('client_id'),self.settings.get('secret'))
@@ -193,7 +193,7 @@ class Mercadopago(BasePaymentProvider):
         return template.render(ctx)
 
     def checkout_prepare(self, request, cart):
-        self.init_api()
+        mp = self.init_api()
         kwargs = {}
         if request.resolver_match and 'cart_namespace' in request.resolver_match.kwargs:
             kwargs['cart_namespace'] = request.resolver_match.kwargs['cart_namespace']
@@ -234,19 +234,19 @@ class Mercadopago(BasePaymentProvider):
                   "title": __('Order for %s') % str(request.event),
                   "quantity": 1,
                   "currency_id": request.event.currency,
-                  "unit_price": 1 #self.format_price(cart['total'])
+                  "unit_price": float(cart['total'])
                 }
               ]
             }
 
 
-        client_id=self.settings.get('client_id')
+#        client_id=self.settings.get('client_id')
 
 #        mp = mercadopago.MP(client_id, client_secret)
-        mp = mercadopago.MP(client_id)
+#        mp = MP(client_id)
 
         # Get the payment reported by the IPN. Glossary of attributes response in https://developers.mercadopago.com
-        paymentInfo = mp.payment.get(kwargs["id"])
+#        paymentInfo = mp.get_payment(kwargs["id"])
     
         # Show payment information
         #if paymentInfo["status"] == 200:
@@ -255,8 +255,9 @@ class Mercadopago(BasePaymentProvider):
         #    return None
 
 
+        preferenceResult = mp.create_preference(preference)
         request.session['payment_mercadopago_order'] = None
-        return self._create_payment(request, mp)
+        return self._create_payment(request, preferenceResult)
 
     @property
     def abort_pending_allowed(self):
@@ -286,7 +287,9 @@ class Mercadopago(BasePaymentProvider):
                 messages.error(request, _('We had trouble communicating with MercadoPago' + str(payment["response"])))
                 logger.error('Error on creating payment: ' + str(payment["response"]))
         except Exception as e:
-            messages.error(request, _('We had trouble communicating with MercadoPago ' + str(e) + str(payment)))
+#            pass
+            messages.error(request, _('We had trouble communicating with ' +
+            'MercadoPago ' + str(e) + str(payment["response"])))
             logger.exception('Error on creating payment: ' + str(e))
 
     def checkout_confirm_render(self, request) -> str:

@@ -1,3 +1,4 @@
+from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy
 
 try:
@@ -10,10 +11,10 @@ __version__ = '1.0.0'
 
 class PluginMeli(PluginConfig):
     name = 'pretix_mercadopago'
-    verbose_name = 'Mercado Pago Plugin'
+    verbose_name = 'MercadoPago Pretix plugin'
 
     class PretixPluginMeta:
-        name = gettext_lazy('Mercado Pago Plugin')
+        name = gettext_lazy('MercadoPago Pretix plugin')
         author = 'FOSS4G team'
         description = gettext_lazy('Plugin para MercadoPago como medio de pago para las entradas.')
         visible = True
