@@ -236,7 +236,9 @@ class Mercadopago(BasePaymentProvider):
                   "currency_id": request.event.currency,
                   "unit_price": float(cart['total'])
                 }
-              ]
+              ],
+              "back_urls": {"failure": "", "pending": "", "success": "https://delawen.com:444/"}
+
             }
 
 
@@ -257,6 +259,7 @@ class Mercadopago(BasePaymentProvider):
 
         preferenceResult = mp.create_preference(preference)
         request.session['payment_mercadopago_order'] = None
+        request.session['payment_mercadopago_preferece_id'] = str(preferenceResult['response']['id'])
         return self._create_payment(request, preferenceResult)
 
     @property
