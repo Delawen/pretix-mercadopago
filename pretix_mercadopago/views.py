@@ -20,8 +20,8 @@ from pretix.base.models import Event, Order, OrderPayment, OrderRefund, Quota
 from pretix.base.payment import PaymentException
 from pretix.control.permissions import event_permission_required
 from pretix.multidomain.urlreverse import eventreverse
-#from pretix.plugins.meli.models import ReferencedMercadoPagoObject
-#from pretix.plugins.meli.payment import Mercadopago
+from pretix_mercadopago.models import ReferencedMercadoPagoObject
+from pretix_mercadopago.payment import Mercadopago
 
 logger = logging.getLogger('pretix.plugins.meli')
 
@@ -74,7 +74,7 @@ def oauth_return(request, *args, **kwargs):
 
 
 def success(request, *args, **kwargs):
-    pid = request.GET.get('paymentId')
+    pid = request.GET.get('id')
     token = request.GET.get('token')
     payer = request.GET.get('PayerID')
     request.session['payment_meracdopago_token'] = token
