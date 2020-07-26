@@ -2,7 +2,7 @@ import json
 from collections import OrderedDict
 
 from django import forms
-# Register your receivers here
+from django.utils.translation import gettext as __, gettext_lazy as _
 from django.dispatch import receiver
 
 from pretix.base.forms import SecretKeySettingsField
