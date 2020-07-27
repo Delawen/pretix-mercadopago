@@ -1,4 +1,5 @@
 from django.conf.urls import include, url
+import pretix_mercadopago.views as views
 
 from pretix.multidomain import event_url
 
@@ -21,6 +22,8 @@ event_patterns = [
 
 
 urlpatterns = [
+    url(r'^control/event/(?P<organizer>[^/]+)/(?P<event>[^/]+)/mercadopago/',
+        views.admin_view, name='backend'),
     url(r'^control/event/(?P<organizer>[^/]+)/(?P<event>[^/]+)/mercadopago/disconnect/',
         oauth_disconnect, name='oauth.disconnect'),
     url(r'^_mercadopago/webhook/$', webhook, name='webhook'),

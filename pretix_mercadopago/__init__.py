@@ -28,4 +28,14 @@ class PluginMeli(PluginConfig):
     def installed(self, event):
         pass  # Your code here
 
+    @cached_property
+    def compatibility_errors(self):
+        errs = []
+        try:
+            import mercadopago  # NOQA
+        except ImportError:
+            errs.append("Python package 'mercadopago' SDK is not installed.")
+        return errs
+
+
 default_app_config = 'pretix_mercadopago.PluginMeli'

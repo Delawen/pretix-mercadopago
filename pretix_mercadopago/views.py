@@ -26,6 +26,12 @@ from pretix_mercadopago.payment import Mercadopago
 logger = logging.getLogger('pretix.plugins.meli')
 
 
+def admin_view(request, *args, **kwargs):
+    r = render(request, 'pretix_mercadopago/admin.html', {
+    })
+    r._csp_ignore = True
+    return r
+
 @xframe_options_exempt
 def redirect_view(request, *args, **kwargs):
     signer = signing.Signer(salt='safe-redirect')
@@ -34,7 +40,7 @@ def redirect_view(request, *args, **kwargs):
     except signing.BadSignature:
         return HttpResponseBadRequest('Invalid parameter')
 
-    r = render(request, 'pretixplugins/mercadopago/redirect.html', {
+    r = render(request, 'pretix_mercadopago/redirect.html', {
         'url': url,
     })
     r._csp_ignore = True
@@ -74,9 +80,9 @@ def oauth_return(request, *args, **kwargs):
 
 
 def success(request, *args, **kwargs):
-    pid = request.GET.get('id')
-    token = request.GET.get('token')
-    payer = request.GET.get('PayerID')
+    pid = request.GET.get('preference_id')
+    token = request.GET.get('merchant_order_id')
+    payer = request.GET.get('collection_id')
     request.session['payment_meracdopago_token'] = token
     request.session['payment_mercadopago_payer'] = payer
 
@@ -168,11 +174,11 @@ def webhook(request, *args, **kwargs):
     prov = MercadoPago(event)
     prov.init_api()
 
-#    try:
-#        sale = paypalrestsdk.Sale.find(saleid)
-#    except:
-#        logger.exception('MercadoPago error on webhook. Event data: %s' % str(event_json))
-#        return HttpResponse('Sale not found', status=500)
+    try:
+        sale = prov.get_preference(saleid)
+    except:
+        logger.exception('MercadoPago error on webhook. Event data: %s' % str(event_json))
+        return HttpResponse('Sale not found', status=500)
 
     if rso and rso.payment:
         payment = rso.payment
