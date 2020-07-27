@@ -43,4 +43,3 @@ setup(
 pretix.plugins.mercadopago=pretix_mercadopago:PretixPluginMeta
 """,
 )
-
