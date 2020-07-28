@@ -191,7 +191,12 @@ class Mercadopago(BasePaymentProvider):
     """
 
     def payment_form_render(self, request) -> str:
-        template = get_template('pretix_mercadopago/checkout_payment_form.html')
+        try:
+            # TODO weird error that doesn't include templates on our path folder
+            template = get_template('../../pretix_mercadopago/templates/pretix_mercadopago/checkout_payment_form.html')
+        except Exception as e:
+            template = get_template('pretixplugins/paypal/checkout_payment_form.html')
+
         ctx = {'request': request, 'event': self.event, 'settings': self.settings}
         return template.render(ctx)
 
@@ -297,7 +302,12 @@ class Mercadopago(BasePaymentProvider):
         Returns the HTML that should be displayed when the user selected this provider
         on the 'confirm order' page.
         """
-        template = get_template('pretix_mercadopago/checkout_payment_confirm.html')
+
+        try:
+            # TODO weird error that doesn't include templates on our path folder
+            template = get_template('../../pretix_mercadopago/templates/pretix_mercadopago/checkout_payment_confirm.html')
+        except Exception as e:
+            template = get_template('pretixplugins/paypal/checkout_payment_confirm.html')
         ctx = {'request': request, 'event': self.event, 'settings': self.settings}
         return template.render(ctx)
 
@@ -308,7 +318,12 @@ class Mercadopago(BasePaymentProvider):
                 retry = False
         except KeyError:
             pass
-        template = get_template('pretix_mercadopago/pending.html')
+        try:
+            # TODO weird error that doesn't include templates on our path folder
+            template = get_template('../../pretix_mercadopago/templates/pretix_mercadopago/pending.html')
+        except Exception as e:
+            template = get_template('pretixplugins/paypal/pending.html')
+
         ctx = {'request': request, 'event': self.event, 'settings': self.settings,
                'retry': retry, 'order': payment.order}
         return template.render(ctx)
