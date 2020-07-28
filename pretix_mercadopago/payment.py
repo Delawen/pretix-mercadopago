@@ -198,21 +198,11 @@ class Mercadopago(BasePaymentProvider):
     def checkout_prepare(self, request, total):
         return True
 
-    """
-    def payment_prepare(self, request: HttpRequest, payment: OrderPayment):
-        return True
-    """
-
     def payment_is_valid_session(self, request):
         return True
-    """
-    def checkout_prepare(self, request, cart):
-        mp = self.init_api()
-        return True
-    """
+
     def payment_prepare(self, request, payment_obj):
         mp = self.init_api()
-
         preference = {
               "items": [
                 {
@@ -235,11 +225,8 @@ class Mercadopago(BasePaymentProvider):
               "external_reference":str(payment_obj.order.code)
             }
 
-#        client_id=self.settings.get('client_id')
-
         # Get the payment reported by the IPN. Glossary of attributes response in https://developers.mercadopago.com
-#        paymentInfo = mp.get_payment(kwargs["id"])
-    
+        #        paymentInfo = mp.get_payment(kwargs["id"])
         # Show payment information
         #if paymentInfo["status"] == 200:
         #    return paymentInfo["response"]
@@ -247,9 +234,7 @@ class Mercadopago(BasePaymentProvider):
         #    return None
 
         preferenceResult = mp.create_preference(preference)
-#        request.session['payment_mercadopago_order'] = None
         request.session['payment_mercadopago_preferece_id'] = str(preferenceResult['response']['id'])
-#        request.session['payment_mercadopago_order'] = payment_obj.order.pk
         request.session['payment_mercadopago_collector_id'] = str(preferenceResult['response']['collector_id'])
         request.session['payment_mercadopago_order'] = payment_obj.order.pk
         request.session['payment_mercadopago_payment'] = payment_obj.pk
@@ -287,7 +272,6 @@ class Mercadopago(BasePaymentProvider):
                 messages.error(request, _('We had trouble communicating with MercadoPago' + str(payment["response"])))
                 logger.error('Error on creating payment: ' + str(payment["response"]))
         except Exception as e:
-#            pass
             messages.error(request, _('We had trouble communicating with ' +
             'MercadoPago ' + str(e) + str(payment["response"])))
             logger.exception('Error on creating payment: ' + str(e))
@@ -337,67 +321,6 @@ class Mercadopago(BasePaymentProvider):
 
     def execute_refund(self, refund: OrderRefund):
         raise PaymentException(_('Refunding is not supported.'))
-
-    def __payment_prepare(self, request, payment_obj):
-        self.init_api()
-
-        payee = {}
-
-        #Agrego mercadopago order hardcode para testear
-        preference = {
-              "items": [
-                {
-                  "title": __('Order {slug}-{code}').format(slug=self.event.slug.upper(),
-                                                            code=payment_obj.order.code),
-                  "quantity": 1,
-                  "unit_price": float(payment_obj.amount),
-                  "currency_id": payment_obj.order.event.currency
-                }
-              ]
-            }
-        client_id=self.settings.get('client_id')
-        mp = mercadopago.MP(client_id)
-#        mp.sandbox_mode('true')
-        preferenceResult = mp.create_preference(preference)
-
-#       payment = mercadopago.Payment({
-#            'header': {'MercadoPago-Partner-Attribution-Id': 'manumanu'},
-#            'intent': 'sale',
-#            'payer': {
-#                "payment_method": "mercadopago",
-#            },
-#            "redirect_urls": {
-#                "return_url": build_absolute_uri(request.event, 'plugins:mercadopago:return'),
-#                "cancel_url": build_absolute_uri(request.event, 'plugins:mercadopago:abort'),
-#            },
-#            "transactions": [
-#                {
-#                    "item_list": {
-#                        "items": [
-#                            {
-#                                "name": __('Order {slug}-{code}').format(slug=self.event.slug.upper(),
-#                                                                         code=payment_obj.order.code),
-#                                "quantity": 1,
-#                                "price": self.format_price(payment_obj.amount),
-#                                "currency": payment_obj.order.event.currency
-#                            }
-#                        ]
-#                    },
-#                    "amount": {
-#                        "currency": request.event.currency,
-#                        "total": self.format_price(payment_obj.amount)
-#                    },
-#                    "description": __('Order {order} for {event}').format(
-#                        event=request.event.name,
-#                        order=payment_obj.order.code
-#                    ),
-#                    "payee": payee
-#                }
-#            ]
-#        })
-        request.session['payment_mercadopago_order'] = payment_obj.order.pk
-        request.session['payment_mercadopago_payment'] = payment_obj.pk
-        return self._create_payment(request, preferenceResult)
 
     def render_invoice_text(self, order: Order, payment: OrderPayment) -> str:
         if order.status == Order.STATUS_PAID:
