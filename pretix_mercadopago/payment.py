@@ -147,8 +147,8 @@ class Mercadopago(BasePaymentProvider):
             settings_content = "<div class='alert alert-info'>%s<br /><code>%s</code></div>" % (
                 _('Please configure a MercadoPago Webhook to the following endpoint in order to automatically cancel orders '
                   'when payments are refunded externally.'),
-                    'TODO link'
-                #build_global_uri('plugins:mercadopago:webhook')
+                #    'TODO link'
+                build_global_uri('plugins:pretix_mercadopago:webhook')
             )
 
         if self.event.currency not in SUPPORTED_CURRENCIES:
@@ -237,8 +237,16 @@ class Mercadopago(BasePaymentProvider):
                   "unit_price": float(cart['total'])
                 }
               ],
-              "back_urls": {"failure": "", "pending": "", "success": "https://delawen.com:444/"}
-
+              "back_urls": {
+                            "failure": 
+                                      build_absolute_uri(request.event,
+                                      # build_global_uri('plugins:pretix_mercadopago:webhook'),
+                                      'plugins:pretix_mercadopago:abort'),
+                            "pending": "", "success":
+#                            build_global_uri('plugins:pretix_mercadopago:success')
+                            build_absolute_uri(request.event,
+                            'plugins:pretix_mercadopago:return')
+                            }
             }
 
 
@@ -260,6 +268,9 @@ class Mercadopago(BasePaymentProvider):
         preferenceResult = mp.create_preference(preference)
         request.session['payment_mercadopago_order'] = None
         request.session['payment_mercadopago_preferece_id'] = str(preferenceResult['response']['id'])
+#        request.session['payment_mercadopago_order'] = payment_obj.order.pk
+        request.session['payment_mercadopago_payment'] = str(preferenceResult['response']['collection_id'])
+
         return self._create_payment(request, preferenceResult)
 
     @property
@@ -521,7 +532,7 @@ class Mercadopago(BasePaymentProvider):
                   "title": __('Order {slug}-{code}').format(slug=self.event.slug.upper(),
                                                             code=payment_obj.order.code),
                   "quantity": 1,
-                  "unit_price": 0.5, #self.format_price(payment_obj.amount),
+                  "unit_price": float(payment_obj.amount),
                   "currency_id": payment_obj.order.event.currency
                 }
               ]
