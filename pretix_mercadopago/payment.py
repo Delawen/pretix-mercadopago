@@ -435,47 +435,13 @@ class Mercadopago(BasePaymentProvider):
         return template.render(ctx)
 
     def payment_partial_refund_supported(self, payment: OrderPayment):
-        return True
+        return False
 
     def payment_refund_supported(self, payment: OrderPayment):
-        return True
+        return False
 
     def execute_refund(self, refund: OrderRefund):
-        self.init_api()
-
-        try:
-            sale = None
-            for res in refund.payment.info_data['transactions'][0]['related_resources']:
-                for k, v in res.items():
-                    if k == 'sale':
-                        sale = paypalrestsdk.Sale.find(v['id'])
-                        break
-
-            pp_refund = sale.refund({
-                "amount": {
-                    "total": self.format_price(refund.amount),
-                    "currency": refund.order.event.currency
-                }
-            })
-        except paypalrestsdk.exceptions.ConnectionError as e:
-            refund.order.log_action('pretix.event.order.refund.failed', {
-                'local_id': refund.local_id,
-                'provider': refund.provider,
-                'error': str(e)
-            })
-            raise PaymentException(_('Refunding the amount via PayPal failed: {}').format(str(e)))
-        if not pp_refund.success():
-            refund.order.log_action('pretix.event.order.refund.failed', {
-                'local_id': refund.local_id,
-                'provider': refund.provider,
-                'error': str(pp_refund.error)
-            })
-            raise PaymentException(_('Refunding the amount via PayPal failed: {}').format(pp_refund.error))
-        else:
-            sale = paypalrestsdk.Payment.find(refund.payment.info_data['id'])
-            refund.payment.info = json.dumps(sale.to_dict())
-            refund.info = json.dumps(pp_refund.to_dict())
-            refund.done()
+        raise PaymentException(_('Refunding is not supported.'))
 
     def __payment_prepare(self, request, payment_obj):
         self.init_api()
