@@ -182,78 +182,58 @@ class Mercadopago(BasePaymentProvider):
             mp = mercadopago.MP(self.settings.get('client_id'),self.settings.get('secret'))
         return mp
 
-
+    """
     def payment_is_valid_session(self, request):
         return (request.session.get('payment_mercadopago_id', '') != ''
                 and request.session.get('payment_mercadopago_payer', '') != '')
+    """
 
     def payment_form_render(self, request) -> str:
         template = get_template('pretix_mercadopago/checkout_payment_form.html')
         ctx = {'request': request, 'event': self.event, 'settings': self.settings}
         return template.render(ctx)
 
+    def checkout_prepare(self, request, total):
+        return True
+
+    """
+    def payment_prepare(self, request: HttpRequest, payment: OrderPayment):
+        return True
+    """
+
+    def payment_is_valid_session(self, request):
+        return True
+    """
     def checkout_prepare(self, request, cart):
         mp = self.init_api()
-        kwargs = {}
-        if request.resolver_match and 'cart_namespace' in request.resolver_match.kwargs:
-            kwargs['cart_namespace'] = request.resolver_match.kwargs['cart_namespace']
-
-        if request.event.settings.payment_mercadopago_connect_user_id:
-            try:
-                tokeninfo = Tokeninfo.create_with_refresh_token(request.event.settings.payment_mercadopago_connect_refresh_token)
-            except BadRequest as ex:
-                ex = json.loads(ex.content)
-                messages.error(request, '{}: {} ({})'.format(
-                    _('We had trouble communicating with PayPal/MP'),
-                    ex['error_description'],
-                    ex['correlation_id'])
-                )
-                return
-
-            # Even if the token has been refreshed, calling userinfo() can fail. In this case we just don't
-            # get the userinfo again and use the payment_paypal_connect_user_id that we already have on file
-            try:
-                userinfo = tokeninfo.userinfo()
-                request.event.settings.payment_mercadopago_connect_user_id = userinfo.email
-            except UnauthorizedAccess:
-                pass
-
-            payee = {
-                "email": request.event.settings.payment_mercadopago_connect_user_id,
-                # If PayPal ever offers a good way to get the MerchantID via the Identifity API,
-                # we should use it instead of the merchant's eMail-address
-                # "merchant_id": request.event.settings.payment_paypal_connect_user_id,
-            }
-        else:
-            payee = {}
-
+        return True
+    """
+    def payment_prepare(self, request, payment_obj):
+        mp = self.init_api()
 
         preference = {
               "items": [
                 {
-                  "title": __('Order for %s') % str(request.event),
+                  "title": __('Order {slug}-{code}').format(slug=self.event.slug.upper(),
+                                                            code=payment_obj.order.code),
                   "quantity": 1,
-                  "currency_id": request.event.currency,
-                  "unit_price": float(cart['total'])
+                  "unit_price": float(payment_obj.amount),
+                  "currency_id": payment_obj.order.event.currency
                 }
               ],
+              "auto_return": 'approved', #solo para las ordenes aprobadas, all
               "back_urls": {
                             "failure": 
                                       build_absolute_uri(request.event,
-                                      # build_global_uri('plugins:pretix_mercadopago:webhook'),
                                       'plugins:pretix_mercadopago:abort'),
                             "pending": "", "success":
-#                            build_global_uri('plugins:pretix_mercadopago:success')
                             build_absolute_uri(request.event,
                             'plugins:pretix_mercadopago:return')
-                            }
+                            },
+              "external_reference":str(payment_obj.order.code)
             }
 
-
 #        client_id=self.settings.get('client_id')
-
-#        mp = mercadopago.MP(client_id, client_secret)
-#        mp = MP(client_id)
 
         # Get the payment reported by the IPN. Glossary of attributes response in https://developers.mercadopago.com
 #        paymentInfo = mp.get_payment(kwargs["id"])
@@ -264,12 +244,13 @@ class Mercadopago(BasePaymentProvider):
         #else:
         #    return None
 
-
         preferenceResult = mp.create_preference(preference)
-        request.session['payment_mercadopago_order'] = None
+#        request.session['payment_mercadopago_order'] = None
         request.session['payment_mercadopago_preferece_id'] = str(preferenceResult['response']['id'])
 #        request.session['payment_mercadopago_order'] = payment_obj.order.pk
-        request.session['payment_mercadopago_payment'] = str(preferenceResult['response']['collection_id'])
+        request.session['payment_mercadopago_collector_id'] = str(preferenceResult['response']['collector_id'])
+        request.session['payment_mercadopago_order'] = payment_obj.order.pk
+        request.session['payment_mercadopago_payment'] = payment_obj.pk
 
         return self._create_payment(request, preferenceResult)
 
@@ -285,7 +266,10 @@ class Mercadopago(BasePaymentProvider):
                     logger.error('Invalid payment state: ' + str(payment["response"]))
                     return
                 request.session['payment_mercadopago_id'] = str(payment["response"]["id"])
-                link = payment["response"]["sandbox_init_point"]
+                if (self.test_mode_message == None):
+                    link = payment["response"]["init_point"]
+                else:
+                    link = payment["response"]["sandbox_init_point"]
 #                     messages.error(request, _('Debug ' + str(link) )) 
 #                     return str(link)
 #                    if link.method == "REDIRECT" and link.rel == "approval_url":
@@ -311,7 +295,7 @@ class Mercadopago(BasePaymentProvider):
         Returns the HTML that should be displayed when the user selected this provider
         on the 'confirm order' page.
         """
-        template = get_template('pretixplugins/paypal/checkout_payment_confirm.html')
+        template = get_template('pretix_mercadopago/checkout_payment_confirm.html')
         ctx = {'request': request, 'event': self.event, 'settings': self.settings}
         return template.render(ctx)
 
@@ -493,7 +477,7 @@ class Mercadopago(BasePaymentProvider):
             refund.info = json.dumps(pp_refund.to_dict())
             refund.done()
 
-    def payment_prepare(self, request, payment_obj):
+    def __payment_prepare(self, request, payment_obj):
         self.init_api()
 
         if request.event.settings.payment_paypal_connect_user_id:
