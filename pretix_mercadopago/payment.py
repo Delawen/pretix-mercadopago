@@ -10,9 +10,8 @@ from django.http import HttpRequest
 from django.template.loader import get_template
 from django.urls import reverse
 from django.utils.translation import gettext as __, gettext_lazy as _
-from i18nfield.strings import LazyI18nString
 
-from pretix.base.models import Event, Order, OrderPayment, OrderRefund, Quota
+from pretix.base.models import Event, OrderPayment, OrderRefund
 from pretix.base.payment import BasePaymentProvider, PaymentException
 from pretix.base.settings import SettingsSandbox
 from pretix.helpers.urls import build_absolute_uri as build_global_uri
@@ -31,20 +30,9 @@ SUPPORTED_CURRENCIES = ['ARS', 'BRL', 'CLP','MXN','COP','PEN','UYU']
 
 LOCAL_ONLY_CURRENCIES = ['ARS']
 
-
-def payment_partial_refund_supported(payment: OrderPayment):
-    return False
-
-
-def payment_refund_supported(payment: OrderPayment):
-    return False
-
-
 class Mercadopago(BasePaymentProvider):
     identifier = 'pretix_mercadopago'
     verbose_name = _('MercadoPago')
-    payment_form_fields = OrderedDict([
-    ])
 
     def __init__(self, event: Event):
         super().__init__(event)
@@ -58,9 +46,28 @@ class Mercadopago(BasePaymentProvider):
         else:
             is_sandbox = self.settings.get('endpoint') == 'sandbox'
         if is_sandbox:
-            return _('The MercadoPago sandbox is being used, you can test without actually sending money but you will need a '
+            return _('The MercadoPago sandbox is being used, you can test without '
+                     'actually sending money but you will need a '
                      'MercadoPago sandbox user to log in.')
         return None
+
+    ####################################################################
+    #                           No Refunds                             #
+    ####################################################################
+
+    def payment_partial_refund_supported(payment: OrderPayment):
+        return False
+
+    def payment_refund_supported(payment: OrderPayment):
+        return False
+
+    def execute_refund(self, refund: OrderRefund):
+        raise PaymentException(_('Refunding is not supported.'))
+
+
+    ####################################################################
+    #                       Plugin Settings                            #
+    ####################################################################
 
     @property
     def settings_form_fields(self):
@@ -83,7 +90,8 @@ class Mercadopago(BasePaymentProvider):
                      label=_('Client ID'),
                      max_length=71,
                      min_length=41,
-                     help_text=_('{token}<a target="_blank" rel="noopener" href="{docs_url}">{text}</a>').format(
+                     help_text=_('{token}<a target="_blank" rel="noopener" '
+                                 'href="{docs_url}">{text}</a>').format(
                          token=_('puede usar un token el lugar del client_id o '),
                          text=_('Click here for a tutorial on how to obtain the required keys'),
                          docs_url='https://www.mercadopago.com.ar/developers/es/guides/faqs/credentials'
@@ -113,13 +121,6 @@ class Mercadopago(BasePaymentProvider):
 
         d.move_to_end('_enabled', False)
         return d
-
-    def get_connect_url(self, request):
-        request.session['payment_mercadopago_oauth_event'] = request.event.pk
-
-        self.init_api()
-        return Tokeninfo.authorize_url({'scope': 'openid profile email'})
-
     def settings_content_render(self, request):
         settings_content = ""
         if self.settings.connect_client_id and not self.settings.secret:
@@ -129,8 +130,9 @@ class Mercadopago(BasePaymentProvider):
                     "<p>{}</p>"
                     "<a href='{}' class='btn btn-primary btn-lg'>{}</a>"
                 ).format(
-                    _('To accept payments via MercadoPagp, you will need an account at MercadoPago. By clicking on the '
-                      'following button, you can either create a new MercadoPago account connect pretix to an existing '
+                    _('To accept payments via MercadoPagp, you will need an account at MercadoPago. '
+                      'By clicking on the following button, you can either create a new MercadoPago '
+                      'account connect pretix to an existing '
                       'one.'),
                     self.get_connect_url(request),
                     _('Connect with {icon} MercadoPago').format(icon='<i class="fa fa-mercadopago"></i>')
@@ -147,7 +149,8 @@ class Mercadopago(BasePaymentProvider):
                 )
         else:
             settings_content = "<div class='alert alert-info'>%s<br /><code>%s</code></div>" % (
-                _('Please configure a MercadoPago Webhook to the following endpoint in order to automatically cancel orders '
+                _('Please configure a MercadoPago Webhook to the following endpoint in order '
+                  'to automatically cancel orders '
                   'when payments are refunded externally.'),
                 #    'TODO link'
                 build_global_uri('plugins:pretix_mercadopago:webhook')
@@ -181,32 +184,27 @@ class Mercadopago(BasePaymentProvider):
         if self.settings.get('client_id') and not self.settings.get('secret'):
             mp = mercadopago.MP(self.settings.get('client_id'))
         else:
-            mp = mercadopago.MP(self.settings.get('client_id'),self.settings.get('secret'))
+            mp = mercadopago.MP(self.settings.get('client_id'), self.settings.get('secret'))
         return mp
 
-    """
-    def payment_is_valid_session(self, request):
-        return (request.session.get('payment_mercadopago_id', '') != ''
-                and request.session.get('payment_mercadopago_payer', '') != '')
-    """
-
+    ####################################################################
+    #                       MercadoPago Interaction                    #
+    ####################################################################
     def payment_form_render(self, request) -> str:
-        try:
-            # TODO weird error that doesn't include templates on our path folder
-            template = get_template('../../pretix_mercadopago/templates/pretix_mercadopago/checkout_payment_form.html')
-        except Exception as e:
-            template = get_template('pretixplugins/paypal/checkout_payment_form.html')
-
-        ctx = {'request': request, 'event': self.event, 'settings': self.settings}
-        return template.render(ctx)
-
-    def checkout_prepare(self, request, total):
-        return True
+        # When the user selects this provider
+        # as their preferred payment method,
+        # they will be shown the HTML you return from this method.
+        return "You will be redirected to MercadoPago now.";
 
     def payment_is_valid_session(self, request):
+        # This is called at the time the user tries to place the order.
+        # It should return True if the user’s session is valid and all data
+        # your payment provider requires in future steps is present.
         return True
 
-    def payment_prepare(self, request, payment_obj):
+    def execute_payment(self, request: HttpRequest, payment_obj: OrderPayment):
+        # After the user has confirmed their purchase,
+        # this method will be called to complete the payment process.
         mp = self.init_api()
         preference = {
               "items": [
@@ -227,10 +225,11 @@ class Mercadopago(BasePaymentProvider):
                             build_absolute_uri(request.event,
                             'plugins:pretix_mercadopago:return')
                             },
-              "external_reference":str(payment_obj.order.code)
+              "external_reference": str(payment_obj.order.code)
             }
 
-        # Get the payment reported by the IPN. Glossary of attributes response in https://developers.mercadopago.com
+        # Get the payment reported by the IPN.
+        # Glossary of attributes response in https://developers.mercadopago.com
         #        paymentInfo = mp.get_payment(kwargs["id"])
         # Show payment information
         #if paymentInfo["status"] == 200:
@@ -238,19 +237,12 @@ class Mercadopago(BasePaymentProvider):
         #else:
         #    return None
 
-        preferenceResult = mp.create_preference(preference)
-        request.session['payment_mercadopago_preferece_id'] = str(preferenceResult['response']['id'])
-        request.session['payment_mercadopago_collector_id'] = str(preferenceResult['response']['collector_id'])
+        payment = mp.create_preference(preference)
+        request.session['payment_mercadopago_preferece_id'] = str(payment['response']['id'])
+        request.session['payment_mercadopago_collector_id'] = str(payment['response']['collector_id'])
         request.session['payment_mercadopago_order'] = payment_obj.order.pk
         request.session['payment_mercadopago_payment'] = payment_obj.pk
 
-        return self._create_payment(request, preferenceResult)
-
-    @property
-    def abort_pending_allowed(self):
-        return False
-
-    def _create_payment(self, request, payment):
         try:
             if payment:
                 if payment["status"] not in ( 200,201) : #ate not in ('created', 'approved', 'pending'):
@@ -282,10 +274,8 @@ class Mercadopago(BasePaymentProvider):
             logger.exception('Error on creating payment: ' + str(e))
 
     def checkout_confirm_render(self, request) -> str:
-        """
-        Returns the HTML that should be displayed when the user selected this provider
-        on the 'confirm order' page.
-        """
+        # Returns the HTML that should be displayed when the user selected this provider
+        # on the 'confirm order' page.
 
         try:
             # TODO weird error that doesn't include templates on our path folder
@@ -295,24 +285,10 @@ class Mercadopago(BasePaymentProvider):
         ctx = {'request': request, 'event': self.event, 'settings': self.settings}
         return template.render(ctx)
 
-    def payment_pending_render(self, request, payment) -> str:
-        retry = True
-        try:
-            if payment.info and payment.info_data['state'] == 'pending':
-                retry = False
-        except KeyError:
-            pass
-        try:
-            # TODO weird error that doesn't include templates on our path folder
-            template = get_template('../../pretix_mercadopago/templates/pretix_mercadopago/pending.html')
-        except Exception as e:
-            template = get_template('pretixplugins/paypal/pending.html')
-
-        ctx = {'request': request, 'event': self.event, 'settings': self.settings,
-               'retry': retry, 'order': payment.order}
-        return template.render(ctx)
-
     def matching_id(self, payment: OrderPayment):
+        # Will be called to get an ID for a matching this payment when comparing
+        # pretix records with records of an external source.
+        # This should return the main transaction ID for your API.
         sale_id = None
         for trans in payment.info_data.get('transactions', []):
             for res in trans.get('related_resources', []):
@@ -321,6 +297,7 @@ class Mercadopago(BasePaymentProvider):
         return sale_id or payment.info_data.get('id', None)
 
     def api_payment_details(self, payment: OrderPayment):
+        # Will be called to populate the details parameter of the payment in the REST API.
         sale_id = None
         for trans in payment.info_data.get('transactions', []):
             for res in trans.get('related_resources', []):
@@ -333,28 +310,11 @@ class Mercadopago(BasePaymentProvider):
             "payment_id": payment.info_data.get('id', None),
             "sale_id": sale_id,
         }
+    ####################################################################
+    #                          Utility functions                       #
+    ####################################################################
+    def get_connect_url(self, request):
+        request.session['payment_mercadopago_oauth_event'] = request.event.pk
 
-    def execute_refund(self, refund: OrderRefund):
-        raise PaymentException(_('Refunding is not supported.'))
-
-    def render_invoice_text(self, order: Order, payment: OrderPayment) -> str:
-        if order.status == Order.STATUS_PAID:
-            if payment.info_data.get('id', None):
-                try:
-                    return '{}\r\n{}: {}\r\n{}: {}'.format(
-                        _('The payment for this invoice has already been received.'),
-                        _('Payment ID'),
-                        payment.info_data['id'],
-                        _('Sale ID'),
-                        payment.info_data['transactions'][0]['related_resources'][0]['sale']['id']
-                    )
-                except (KeyError, IndexError):
-                    return '{}\r\n{}: {}'.format(
-                        _('The payment for this invoice has already been received.'),
-                        _('Payment ID'),
-                        payment.info_data['id']
-                    )
-            else:
-                return super().render_invoice_text(order, payment)
-
-        return self.settings.get('_invoice_text', as_type=LazyI18nString, default='')
+        self.init_api()
+        return Tokeninfo.authorize_url({'scope': 'openid profile email'})
