@@ -47,46 +47,17 @@ def redirect_view(request, *args, **kwargs):
     return r
 
 
-@scopes_disabled()
-def oauth_return(request, *args, **kwargs):
-    if 'payment_mercadopago_oauth_event' not in request.session:
-        messages.error(request, _('An error occurred during connecting with MercadoPago, please try again.'))
-        return redirect(reverse('control:index'))
-
-    event = get_object_or_404(Event, pk=request.session['payment_mercadopago_oauth_event'])
-
-    prov = Meradopago(event)
-    prov.init_api()
-
-#    try:
-#        tokeninfo = Tokeninfo.create(request.GET.get('code'))
-#        userinfo = Tokeninfo.create_with_refresh_token(tokeninfo['refresh_token']).userinfo()
-#    except:
-#        logger.exception('Failed to obtain OAuth token')
-#        messages.error(request, _('An error occurred during connecting with PayPal, please try again.'))
-#    else:
-#        messages.success(request,
-#                         _('Your PayPal account is now connected to pretix. You can change the settings in '
-#                           'detail below.'))
-
-#        event.settings.payment_paypal_connect_refresh_token = tokeninfo['refresh_token']
-#        event.settings.payment_paypal_connect_user_id = userinfo.email
-
-    return redirect(reverse('control:event.settings.payment.provider', kwargs={
-        'organizer': event.organizer.slug,
-        'event': event.slug,
-        'provider': 'mercadopago'
-    }))
-
-
 def success(request, *args, **kwargs):
     pid = request.GET.get('preference_id')
-    token = request.GET.get('merchant_order_id')
-    payer = request.GET.get('collection_id')
-    request.session['payment_meracdopago_token'] = token
-    request.session['payment_mercadopago_payer'] = payer
-
+    orderid = request.GET.get('external_reference')
+    merchant_order_id = request.GET.get('merchant_order_id')
+    collection_id = request.GET.get('collection_id')
+    status = request.GET.get('collection_status')
     urlkwargs = {}
+    payment=Mercadopago(request.event)
+    urlkwargs['step'] = 'confirm'
+    return redirect(eventreverse(request.event, 'presale:event.checkout', kwargs=urlkwargs))
+
     if 'cart_namespace' in kwargs:
         urlkwargs['cart_namespace'] = kwargs['cart_namespace']
 

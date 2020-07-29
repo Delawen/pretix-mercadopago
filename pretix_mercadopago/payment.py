@@ -206,7 +206,7 @@ class Mercadopago(BasePaymentProvider):
     def payment_is_valid_session(self, request):
         return True
 
-    def payment_prepare(self, request, payment_obj):
+    def execute_payment(self, request, payment_obj):
         mp = self.init_api()
         preference = {
               "items": [

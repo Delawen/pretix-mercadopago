@@ -4,7 +4,7 @@ import pretix_mercadopago.views as views
 from pretix.multidomain import event_url
 
 from .views import (
-    abort, oauth_disconnect, oauth_return, redirect_view, success, webhook,
+    abort, oauth_disconnect, redirect_view, success, webhook,
 )
 
 event_patterns = [
@@ -27,5 +27,4 @@ urlpatterns = [
     url(r'^control/event/(?P<organizer>[^/]+)/(?P<event>[^/]+)/mercadopago/disconnect/',
         oauth_disconnect, name='oauth.disconnect'),
     url(r'^_mercadopago/webhook/$', webhook, name='webhook'),
-    url(r'^_mercadopago/oauth_return/$', oauth_return, name='oauth.return'),
 ]
