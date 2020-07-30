@@ -72,6 +72,8 @@ def success(request, *args, **kwargs):
         if status == 'approved' == paymentInfo['response']['status']:
             payment.order.status = Order.STATUS_PAID
             payment.order.save()
+            payment.state ='confirmed' 
+            payment.save()
     """
     return redirect(eventreverse(request.event, 'presale:event.checkout', kwargs=urlkwargs))
 
