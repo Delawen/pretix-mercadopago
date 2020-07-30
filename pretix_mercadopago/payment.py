@@ -1,4 +1,5 @@
 import logging
+import json
 from collections import OrderedDict
 from decimal import Decimal
 
@@ -238,24 +239,26 @@ class Mercadopago(BasePaymentProvider):
         # else:
         #    return None
 
-        payment = mp.create_preference(preference)
-        payment_obj.payment_provider = payment
-        request.session['payment_mercadopago_preferece_id'] = str(payment['response']['id'])
-        request.session['payment_mercadopago_collector_id'] = str(payment['response']['collector_id'])
+        preferenceResult = mp.create_preference(preference)
+        payment_obj.info = json.dumps(preferenceResult, indent=4)
+        payment_obj.save()
+        request.session['payment_mercadopago_preferece_id'] = str(preferenceResult['response']['id'])
+        request.session['payment_mercadopago_collector_id'] = str(
+            preferenceResult['response']['collector_id'])
         request.session['payment_mercadopago_order'] = payment_obj.order.pk
         request.session['payment_mercadopago_payment'] = payment_obj.pk
 
         try:
-            if payment:
-                if payment["status"] not in (200, 201): # ate not in ('created', 'approved', 'pending'):
-                    messages.error(request, _('We had trouble communicating with MercadoPago' + str(payment["response"]["message"])))
-                    logger.error('Invalid payment state: ' + str(payment["response"]))
+            if preferenceResult:
+                if preferenceResult["status"] not in (200, 201): # ate not in ('created', 'approved', 'pending'):
+                    messages.error(request, _('We had trouble communicating with MercadoPago' + str(preferenceResult["response"]["message"])))
+                    logger.error('Invalid payment state: ' + str(preferenceResult["response"]))
                     return
-                request.session['payment_mercadopago_id'] = str(payment["response"]["id"])
+                request.session['payment_mercadopago_id'] = str(preferenceResult["response"]["id"])
                 if (self.test_mode_message == None):
-                    link = payment["response"]["init_point"]
+                    link = preferenceResult["response"]["init_point"]
                 else:
-                    link = payment["response"]["sandbox_init_point"]
+                    link = preferenceResult["response"]["sandbox_init_point"]
 #                     messages.error(request, _('Debug ' + str(link) ))
 #                     return str(link)
 #                    if link.method == "REDIRECT" and link.rel == "approval_url":
@@ -268,11 +271,11 @@ class Mercadopago(BasePaymentProvider):
 #                     else:
                 return link
             else:
-                messages.error(request, _('We had trouble communicating with MercadoPago' + str(payment["response"])))
-                logger.error('Error on creating payment: ' + str(payment["response"]))
+                messages.error(request, _('We had trouble communicating with MercadoPago' + str(preferenceResult["response"])))
+                logger.error('Error on creating payment: ' + str(preferenceResult["response"]))
         except Exception as e:
             messages.error(request, _('We had trouble communicating with ' +
-            'MercadoPago ' + str(e) + str(payment["response"])))
+            'MercadoPago ' + str(e) + str(preferenceResult["response"])))
             logger.exception('Error on creating payment: ' + str(e))
 
     def checkout_confirm_render(self, request) -> str:
