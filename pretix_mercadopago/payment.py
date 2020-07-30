@@ -3,7 +3,7 @@ from collections import OrderedDict
 from decimal import Decimal
 
 import mercadopago
-            
+
 from django import forms
 from django.contrib import messages
 from django.http import HttpRequest
@@ -19,7 +19,7 @@ from pretix.multidomain.urlreverse import build_absolute_uri
 
 logger = logging.getLogger('pretix.plugins.mercadopago')
 
-SUPPORTED_CURRENCIES = ['ARS', 'BRL', 'CLP','MXN','COP','PEN','UYU']
+SUPPORTED_CURRENCIES = ['ARS', 'BRL', 'CLP', 'MXN', 'COP', 'PEN', 'UYU']
 # ARS Peso argentino.
 # BRL Real brasilero.
 # CLP Peso chileno.
@@ -29,6 +29,7 @@ SUPPORTED_CURRENCIES = ['ARS', 'BRL', 'CLP','MXN','COP','PEN','UYU']
 # UYU Peso uruguayo.
 
 LOCAL_ONLY_CURRENCIES = ['ARS']
+
 
 class Mercadopago(BasePaymentProvider):
     identifier = 'pretix_mercadopago'
@@ -55,15 +56,14 @@ class Mercadopago(BasePaymentProvider):
     #                           No Refunds                             #
     ####################################################################
 
-    def payment_partial_refund_supported(payment: OrderPayment):
+    def payment_partial_refund_supported(self, payment: OrderPayment):
         return False
 
-    def payment_refund_supported(payment: OrderPayment):
+    def payment_refund_supported(self, payment: OrderPayment):
         return False
 
     def execute_refund(self, refund: OrderRefund):
         raise PaymentException(_('Refunding is not supported.'))
-
 
     ####################################################################
     #                       Plugin Settings                            #
@@ -121,6 +121,7 @@ class Mercadopago(BasePaymentProvider):
 
         d.move_to_end('_enabled', False)
         return d
+
     def settings_content_render(self, request):
         settings_content = ""
         if self.settings.connect_client_id and not self.settings.secret:
@@ -194,7 +195,7 @@ class Mercadopago(BasePaymentProvider):
         # When the user selects this provider
         # as their preferred payment method,
         # they will be shown the HTML you return from this method.
-        return "You will be redirected to MercadoPago now.";
+        return "You will be redirected to MercadoPago now."
 
     def payment_is_valid_session(self, request):
         # This is called at the time the user tries to place the order.
@@ -207,37 +208,38 @@ class Mercadopago(BasePaymentProvider):
         # this method will be called to complete the payment process.
         mp = self.init_api()
         preference = {
-              "items": [
+            "items": [
                 {
-                  "title": __('Order {slug}-{code}').format(slug=self.event.slug.upper(),
-                                                            code=payment_obj.order.code),
-                  "quantity": 1,
-                  "unit_price": float(payment_obj.amount),
-                  "currency_id": payment_obj.order.event.currency
+                    "title": __('Order {slug}-{code}').format(slug=self.event.slug.upper(),
+                                                              code=payment_obj.order.code),
+                    "quantity": 1,
+                    "unit_price": float(payment_obj.amount),
+                    "currency_id": payment_obj.order.event.currency
                 }
-              ],
-              "auto_return": 'approved', #solo para las ordenes aprobadas, all
-              "back_urls": {
-                            "failure": 
-                                      build_absolute_uri(request.event,
-                                      'plugins:pretix_mercadopago:abort'),
-                            "pending": "", "success":
-                            build_absolute_uri(request.event,
-                            'plugins:pretix_mercadopago:return')
-                            },
-              "external_reference": str(payment_obj.order.code)
-            }
+            ],
+            "auto_return": 'approved',  # solo para las ordenes aprobadas, all
+            "back_urls": {
+                "failure":
+                    build_absolute_uri(request.event,
+                        'plugins:pretix_mercadopago:abort'),
+                "pending": "", "success":
+                    build_absolute_uri(request.event,
+                        'plugins:pretix_mercadopago:return')
+            },
+            "external_reference": str(payment_obj.order.code)
+        }
 
         # Get the payment reported by the IPN.
         # Glossary of attributes response in https://developers.mercadopago.com
         #        paymentInfo = mp.get_payment(kwargs["id"])
         # Show payment information
-        #if paymentInfo["status"] == 200:
+        # if paymentInfo["status"] == 200:
         #    return paymentInfo["response"]
-        #else:
+        # else:
         #    return None
 
         payment = mp.create_preference(preference)
+        payment_obj.payment_provider = payment
         request.session['payment_mercadopago_preferece_id'] = str(payment['response']['id'])
         request.session['payment_mercadopago_collector_id'] = str(payment['response']['collector_id'])
         request.session['payment_mercadopago_order'] = payment_obj.order.pk
@@ -245,7 +247,7 @@ class Mercadopago(BasePaymentProvider):
 
         try:
             if payment:
-                if payment["status"] not in ( 200,201) : #ate not in ('created', 'approved', 'pending'):
+                if payment["status"] not in (200, 201): # ate not in ('created', 'approved', 'pending'):
                     messages.error(request, _('We had trouble communicating with MercadoPago' + str(payment["response"]["message"])))
                     logger.error('Invalid payment state: ' + str(payment["response"]))
                     return
@@ -254,7 +256,7 @@ class Mercadopago(BasePaymentProvider):
                     link = payment["response"]["init_point"]
                 else:
                     link = payment["response"]["sandbox_init_point"]
-#                     messages.error(request, _('Debug ' + str(link) )) 
+#                     messages.error(request, _('Debug ' + str(link) ))
 #                     return str(link)
 #                    if link.method == "REDIRECT" and link.rel == "approval_url":
 #                     if request.session.get('iframe_session', False):
