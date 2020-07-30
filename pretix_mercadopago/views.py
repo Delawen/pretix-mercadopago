@@ -2,7 +2,7 @@ import json
 import logging
 from decimal import Decimal
 
-#import paypalrestsdk
+import mercadopago
 from django.contrib import messages
 from django.core import signing
 from django.db.models import Sum
@@ -54,8 +54,25 @@ def success(request, *args, **kwargs):
     collection_id = request.GET.get('collection_id')
     status = request.GET.get('collection_status')
     urlkwargs = {}
-    payment=Mercadopago(request.event)
-    urlkwargs['step'] = 'confirm'
+
+    mp = Mercadopago(request.event).init_api()
+    paymentInfo = mp.get_payment(collection_id)
+
+    if paymentInfo["status"] == 200:
+        if orderid == paymentInfo['response']['external_reference']:
+            payment = OrderPayment.objects.get(pk=orderid)
+            payment.info = json.dumps(paymentInfo, indent=4)
+        else:
+            payment = None
+    else:
+        messages.error(request, str(e))
+        return None
+        
+    if payment:
+        if status == 'approved' == paymentInfo['response']['status']:
+            payment.order.status = Order.STATUS_PAID
+            payment.order.save()
+    """
     return redirect(eventreverse(request.event, 'presale:event.checkout', kwargs=urlkwargs))
 
     if 'cart_namespace' in kwargs:
@@ -82,7 +99,7 @@ def success(request, *args, **kwargs):
         logger.error('Session did not contain payment_mercadopago_id')
         urlkwargs['step'] = 'payment'
         return redirect(eventreverse(request.event, 'presale:event.checkout', kwargs=urlkwargs))
-
+    """
     if payment:
         return redirect(eventreverse(request.event, 'presale:event.order', kwargs={
             'order': payment.order.code,

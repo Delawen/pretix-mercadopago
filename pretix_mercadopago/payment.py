@@ -3,7 +3,7 @@ import json
 from collections import OrderedDict
 from decimal import Decimal
 
-import mercadopago
+import mercadopago 
 
 from django import forms
 from django.contrib import messages
@@ -11,8 +11,9 @@ from django.http import HttpRequest
 from django.template.loader import get_template
 from django.urls import reverse
 from django.utils.translation import gettext as __, gettext_lazy as _
+from i18nfield.strings import LazyI18nString
 
-from pretix.base.models import Event, OrderPayment, OrderRefund
+from pretix.base.models import Event, OrderPayment, OrderRefund, Order
 from pretix.base.payment import BasePaymentProvider, PaymentException
 from pretix.base.settings import SettingsSandbox
 from pretix.helpers.urls import build_absolute_uri as build_global_uri
@@ -182,7 +183,7 @@ class Mercadopago(BasePaymentProvider):
     def is_allowed(self, request: HttpRequest, total: Decimal = None) -> bool:
         return super().is_allowed(request, total) and self.event.currency in SUPPORTED_CURRENCIES
 
-    def init_api(self):
+    def init_api(self) -> mercadopago.MP:
         if self.settings.get('client_id') and not self.settings.get('secret'):
             mp = mercadopago.MP(self.settings.get('client_id'))
         else:
@@ -227,7 +228,7 @@ class Mercadopago(BasePaymentProvider):
                     build_absolute_uri(request.event,
                         'plugins:pretix_mercadopago:return')
             },
-            "external_reference": str(payment_obj.order.code)
+            "external_reference": str(payment_obj.id)
         }
 
         # Get the payment reported by the IPN.
@@ -289,6 +290,27 @@ class Mercadopago(BasePaymentProvider):
             template = get_template('pretixplugins/paypal/checkout_payment_confirm.html')
         ctx = {'request': request, 'event': self.event, 'settings': self.settings}
         return template.render(ctx)
+
+    def render_invoice_text(self, order: Order, payment: OrderPayment) -> str:
+        if order.status == Order.STATUS_PAID:
+            if payment.info_data.get('id', None):
+                try:
+                    return '{}\r\n{}: {}'.format(
+                        _('The payment for this invoice has already been received.'),
+                        _('Payment ID'),
+                        payment.info_data['response']['id'],
+                    )
+                except (KeyError, IndexError):
+                    return '{}\r\n{}: {}'.format(
+                        _('The payment for this invoice has already been received.'),
+                        _('Payment ID'),
+                        payment.info_data['response']['id']
+                    )
+            else:
+                return super().render_invoice_text(order, payment)
+
+        return self.settings.get('_invoice_text', as_type=LazyI18nString, default='')
+        
 
     def matching_id(self, payment: OrderPayment):
         # Will be called to get an ID for a matching this payment when comparing
