@@ -61,7 +61,7 @@ def success(request, *args, **kwargs):
     if paymentInfo["status"] == 200:
         if orderid == paymentInfo['response']['external_reference']:
             payment = OrderPayment.objects.get(pk=orderid)
-            payment.info = json.dumps(paymentInfo, indent=4)
+            payment.info = json.dumps(paymentInfo['response'], indent=4)
         else:
             payment = None
     else:
@@ -74,6 +74,13 @@ def success(request, *args, **kwargs):
             payment.order.save()
             payment.state ='confirmed' 
             payment.save()
+        if status == 'pending' == paymentInfo['response']['status']:
+            payment.order.status = Order.STATUS_PENDING
+            payment.order.save()
+            payment.state ='pending' 
+            payment.save()
+
+
     """
     return redirect(eventreverse(request.event, 'presale:event.checkout', kwargs=urlkwargs))
 
@@ -124,7 +131,7 @@ def abort(request, *args, **kwargs):
         return redirect(eventreverse(request.event, 'presale:event.order', kwargs={
             'order': payment.order.code,
             'secret': payment.order.secret
-        }) + ('?paid=yes' if payment.order.status == Order.STATUS_PAID else ''))
+        }) + ('?paid=no' if payment.order.status == Order.STATUS_PAID else ''))
     else:
         return redirect(eventreverse(request.event, 'presale:event.checkout', kwargs={'step': 'payment'}))
 

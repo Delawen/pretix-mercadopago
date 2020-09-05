@@ -224,7 +224,10 @@ class Mercadopago(BasePaymentProvider):
                 "failure":
                     build_absolute_uri(request.event,
                         'plugins:pretix_mercadopago:abort'),
-                "pending": "", "success":
+                "pending":
+                    build_absolute_uri(request.event,
+                        'plugins:pretix_mercadopago:return'),
+                "success":
                     build_absolute_uri(request.event,
                         'plugins:pretix_mercadopago:return')
             },
