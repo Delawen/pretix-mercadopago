@@ -127,7 +127,7 @@ class Mercadopago(BasePaymentProvider):
     def settings_content_render(self, request):
         settings_content = ""
         if self.settings.connect_client_id and not self.settings.secret:
-            # Use MercadoPAgo connect
+            # Use MercadoPago connect
             if not self.settings.connect_user_id:
                 settings_content = (
                     "<p>{}</p>"
@@ -219,11 +219,11 @@ class Mercadopago(BasePaymentProvider):
                     "currency_id": payment_obj.order.event.currency
                 }
             ],
-            "auto_return": 'approved',  # solo para las ordenes aprobadas, all
+            "auto_return": 'all',  # solo para las ordenes aprobadas, all
             "back_urls": {
                 "failure":
                     build_absolute_uri(request.event,
-                        'plugins:pretix_mercadopago:abort'),
+                        'plugins:pretix_mercadopago:return'),
                 "pending":
                     build_absolute_uri(request.event,
                         'plugins:pretix_mercadopago:return'),
@@ -263,16 +263,6 @@ class Mercadopago(BasePaymentProvider):
                     link = preferenceResult["response"]["init_point"]
                 else:
                     link = preferenceResult["response"]["sandbox_init_point"]
-#                     messages.error(request, _('Debug ' + str(link) ))
-#                     return str(link)
-#                    if link.method == "REDIRECT" and link.rel == "approval_url":
-#                     if request.session.get('iframe_session', False):
-#                         signer = signing.Signer(salt='safe-redirect')
-#                         return (
-#                             build_absolute_uri(request.event, 'plugins:mercadopago:redirect') + '?url=' +
-#                             urllib.parse.quote(signer.sign(link))
-#                         )
-#                     else:
                 return link
             else:
                 messages.error(request, _('We had trouble communicating with MercadoPago' + str(preferenceResult["response"])))

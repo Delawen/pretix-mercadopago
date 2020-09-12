@@ -1,4 +1,3 @@
-import json
 import logging
 from decimal import Decimal
 
@@ -14,7 +13,6 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django_scopes import scopes_disabled
-#from paypalrestsdk.openid_connect import Tokeninfo
 
 from pretix.base.models import Event, Order, OrderPayment, OrderRefund, Quota
 from pretix.base.payment import PaymentException
@@ -32,6 +30,7 @@ def admin_view(request, *args, **kwargs):
     r._csp_ignore = True
     return r
 
+
 @xframe_options_exempt
 def redirect_view(request, *args, **kwargs):
     signer = signing.Signer(salt='safe-redirect')
@@ -46,69 +45,60 @@ def redirect_view(request, *args, **kwargs):
     r._csp_ignore = True
     return r
 
+# Return url for MercadoPago when payment is pending or success
+
 
 def success(request, *args, **kwargs):
-    pid = request.GET.get('preference_id')
     orderid = request.GET.get('external_reference')
-    merchant_order_id = request.GET.get('merchant_order_id')
     collection_id = request.GET.get('collection_id')
     status = request.GET.get('collection_status')
-    urlkwargs = {}
 
+    # Ask MercadoPago again about the status
+    # to avoid pishing!
+    # (don't trust any call to this url)
     mp = Mercadopago(request.event).init_api()
     paymentInfo = mp.get_payment(collection_id)
 
+    payment = None
     if paymentInfo["status"] == 200:
         if orderid == paymentInfo['response']['external_reference']:
             payment = OrderPayment.objects.get(pk=orderid)
-            payment.info = json.dumps(paymentInfo['response'], indent=4)
         else:
-            payment = None
+            messages.error(request, _('Invalid attempt to pay order ' + orderid))
+
     else:
         messages.error(request, str(e))
         return None
-        
+
+    # Documentation for payment object:
+    # https://www.mercadopago.com.ar/developers/es/reference/payments/resource/
     if payment:
-        if status == 'approved' == paymentInfo['response']['status']:
+        order = payment.order
+        mpstatus = paymentInfo['response']['status']
+
+        # Something fishy detected
+        if status != mpstatus:
+            messages.error(request, _('Invalid attempt to pay order ' + orderid))
+        elif mpstatus == 'approved':
             payment.order.status = Order.STATUS_PAID
-            payment.order.save()
-            payment.state ='confirmed' 
-            payment.save()
-        if status == 'pending' == paymentInfo['response']['status']:
+            payment.state = 'confirmed'
+        elif (mpstatus == 'pending') or (mpstatus == 'authorized') or (mpstatus == 'in_process') or (mpstatus == 'in_mediation'):
             payment.order.status = Order.STATUS_PENDING
-            payment.order.save()
-            payment.state ='pending' 
-            payment.save()
+            payment.state = 'pending'
+        elif (mpstatus == 'cancelled'):
+            payment.order.status = Order.STATUS_CANCELED
+            payment.state = 'canceled'
+        elif (mpstatus == 'rejected'):
+            payment.order.status = Order.STATUS_CANCELED
+            payment.state = 'failed'
+        elif (mpstatus == 'refunded') or (mpstatus == 'charged_back'):
+            payment.order.status = Order.STATUS_CANCELED
+            payment.state = 'refunded'
 
+        payment.info = paymentInfo['response']['status_detail']
+        payment.order.save()
+        payment.save()
 
-    """
-    return redirect(eventreverse(request.event, 'presale:event.checkout', kwargs=urlkwargs))
-
-    if 'cart_namespace' in kwargs:
-        urlkwargs['cart_namespace'] = kwargs['cart_namespace']
-
-    if request.session.get('payment_mercadopago_payment'):
-        payment = OrderPayment.objects.get(pk=request.session.get('payment_mercadopago_payment'))
-    else:
-        payment = None
-
-    if pid == request.session.get('payment_mercadopago_id', None):
-        if payment:
-            prov = Mercadopago(request.event)
-            try:
-                resp = prov.execute_payment(request, payment)
-            except PaymentException as e:
-                messages.error(request, str(e))
-                urlkwargs['step'] = 'payment'
-                return redirect(eventreverse(request.event, 'presale:event.checkout', kwargs=urlkwargs))
-            if resp:
-                return resp
-    else:
-        messages.error(request, _('Invalid response from MercadoPago received.'))
-        logger.error('Session did not contain payment_mercadopago_id')
-        urlkwargs['step'] = 'payment'
-        return redirect(eventreverse(request.event, 'presale:event.checkout', kwargs=urlkwargs))
-    """
     if payment:
         return redirect(eventreverse(request.event, 'presale:event.order', kwargs={
             'order': payment.order.code,
@@ -117,23 +107,6 @@ def success(request, *args, **kwargs):
     else:
         urlkwargs['step'] = 'confirm'
         return redirect(eventreverse(request.event, 'presale:event.checkout', kwargs=urlkwargs))
-
-
-def abort(request, *args, **kwargs):
-    messages.error(request, _('It looks like you canceled the MercadoPago payment'))
-
-    if request.session.get('payment_mercadoapgo_payment'):
-        payment = OrderPayment.objects.get(pk=request.session.get('payment_mercadopago_payment'))
-    else:
-        payment = None
-
-    if payment:
-        return redirect(eventreverse(request.event, 'presale:event.order', kwargs={
-            'order': payment.order.code,
-            'secret': payment.order.secret
-        }) + ('?paid=no' if payment.order.status == Order.STATUS_PAID else ''))
-    else:
-        return redirect(eventreverse(request.event, 'presale:event.checkout', kwargs={'step': 'payment'}))
 
 
 @csrf_exempt
