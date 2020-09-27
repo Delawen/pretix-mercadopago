@@ -91,7 +91,7 @@ class Mercadopago(BasePaymentProvider):
                  forms.CharField(
                      label=_('Client ID'),
                      max_length=71,
-                     min_length=41,
+                     min_length=10,
                      help_text=_('{token}<a target="_blank" rel="noopener" '
                                  'href="{docs_url}">{text}</a>').format(
                          token=_('puede usar un token el lugar del client_id o '),
@@ -103,7 +103,7 @@ class Mercadopago(BasePaymentProvider):
                  forms.CharField(
                      label=_('Secret'),
                      max_length=71,
-                     min_length=71,
+                     min_length=10,
                      required=False
                  )),
                 ('endpoint',
