@@ -206,70 +206,118 @@ class Mercadopago(BasePaymentProvider):
         return True
 
     def execute_payment(self, request: HttpRequest, payment_obj: OrderPayment):
-        # After the user has confirmed their purchase,
-        # this method will be called to complete the payment process.
-        mp = self.init_api()
-        preference = {
-            "items": [
-                {
-                    "title": __('Order {slug}-{code}').format(slug=self.event.slug.upper(),
-                                                              code=payment_obj.order.code),
-                    "quantity": 1,
-                    "unit_price": float(payment_obj.amount),
-                    "currency_id": payment_obj.order.event.currency
-                }
-            ],
-            "auto_return": 'all',  # solo para las ordenes aprobadas, all
-            "back_urls": {
-                "failure":
-                    build_absolute_uri(request.event,
-                        'plugins:pretix_mercadopago:return'),
-                "pending":
-                    build_absolute_uri(request.event,
-                        'plugins:pretix_mercadopago:return'),
-                "success":
-                    build_absolute_uri(request.event,
-                        'plugins:pretix_mercadopago:return')
-            },
-            "external_reference": str(payment_obj.id)
-        }
-
-        # Get the payment reported by the IPN.
-        # Glossary of attributes response in https://developers.mercadopago.com
-        #        paymentInfo = mp.get_payment(kwargs["id"])
-        # Show payment information
-        # if paymentInfo["status"] == 200:
-        #    return paymentInfo["response"]
-        # else:
-        #    return None
-
-        preferenceResult = mp.create_preference(preference)
-        payment_obj.info = json.dumps(preferenceResult, indent=4)
-        payment_obj.save()
-        request.session['payment_mercadopago_preferece_id'] = str(preferenceResult['response']['id'])
-        request.session['payment_mercadopago_collector_id'] = str(
-            preferenceResult['response']['collector_id'])
-        request.session['payment_mercadopago_order'] = payment_obj.order.pk
-        request.session['payment_mercadopago_payment'] = payment_obj.pk
-
         try:
-            if preferenceResult:
-                if preferenceResult["status"] not in (200, 201): # ate not in ('created', 'approved', 'pending'):
-                    messages.error(request, _('We had trouble communicating with MercadoPago' + str(preferenceResult["response"]["message"])))
-                    logger.error('Invalid payment state: ' + str(preferenceResult["response"]))
-                    return
-                request.session['payment_mercadopago_id'] = str(preferenceResult["response"]["id"])
-                if (self.test_mode_message == None):
-                    link = preferenceResult["response"]["init_point"]
-                else:
-                    link = preferenceResult["response"]["sandbox_init_point"]
-                return link
+            # After the user has confirmed their purchase,
+            # this method will be called to complete the payment process.
+            mp = self.init_api()
+            order = payment_obj.order
+            meta_info = json.loads(order.meta_info)
+            form_data = meta_info.get('contact_form_data', {})
+
+            address = {}
+            company = ''
+            name = ''
+            if hasattr(Order, 'invoice_address'):
+                address = {
+                        "zip_code": order.invoice_address.zipcode,
+                        "street_name":  order.invoice_address.street
+                    }
+                company = order.invoice_address.company
+                name = str(order.invoice_address.name_parts)
+
+            identification_type = form_data.get('invoicing_type_tax_id', '')
+
+            if identification_type == 'PASS':
+                identification_number = form_data.get('invoicing_tax_id_pass', '')
+            elif identification_type == 'VAT':
+                identification_number = form_data.get('invoicing_tax_id_vat', '')
             else:
-                messages.error(request, _('We had trouble communicating with MercadoPago' + str(preferenceResult["response"])))
-                logger.error('Error on creating payment: ' + str(preferenceResult["response"]))
+                identification_number = form_data.get('invoicing_tax_id_dni', '')
+            
+            preference = {
+                "items": [
+                    {
+                        "title": 
+                                __('Order {slug}-{code}').format(
+                                        slug=self.event.slug,
+                                        code=order.code),
+                        "quantity": 1,
+                        "unit_price": float(payment_obj.amount),
+                        "currency_id": order.event.currency
+                    }
+                ],
+                "auto_return": 'all',  # solo para las ordenes aprobadas, all
+                "back_urls": {
+                    "failure":
+                        build_absolute_uri(request.event,
+                            'plugins:pretix_mercadopago:return'),
+                    "pending":
+                        build_absolute_uri(request.event,
+                            'plugins:pretix_mercadopago:return'),
+                    "success":
+                        build_absolute_uri(request.event,
+                            'plugins:pretix_mercadopago:return')
+                },
+                "notification_url": 
+                        build_absolute_uri(request.event,
+                            'plugins:pretix_mercadopago:return'),
+                "statement_descriptor": __('Order {slug}-{code}').format(
+                                        slug=self.event.slug,
+                                        code=order.code),
+                "external_reference": str(payment_obj.id),
+      #          "additional_info": json.dumps(order.invoice_address)[:600],
+                "payer": {
+                    "name": name,
+                    "surname": company,
+                    "email": form_data.get('email', ''),
+                    "identification": {
+                        "type": identification_type,
+                        "number": identification_number
+                    },
+                    "address": address
+                },
+                "payment_methods": {
+                    "installments" : 1
+                }
+            }
+
+
+            # Get the payment reported by the IPN.
+            # Glossary of attributes response in https://developers.mercadopago.com
+            #        paymentInfo = mp.get_payment(kwargs["id"])
+
+            preferenceResult = mp.create_preference(preference)
+            payment_obj.info = json.dumps(preferenceResult, indent=4)
+            payment_obj.save()
+            request.session['payment_mercadopago_preferece_id'] = str(preferenceResult['response']['id'])
+            request.session['payment_mercadopago_collector_id'] = str(
+                preferenceResult['response']['collector_id'])
+            request.session['payment_mercadopago_order'] = order.pk
+            request.session['payment_mercadopago_payment'] = payment_obj.pk
+
+            try:
+                if preferenceResult:
+                    if preferenceResult["status"] not in (200, 201): # ate not in ('created', 'approved', 'pending'):
+                        messages.error(request, _('We had trouble communicating with MercadoPago' + str(preferenceResult["response"]["message"])))
+                        logger.error('Invalid payment state: ' + str(preferenceResult["response"]))
+                        return
+                    request.session['payment_mercadopago_id'] = str(preferenceResult["response"]["id"])
+                    if (self.test_mode_message == None):
+                        link = preferenceResult["response"]["init_point"]
+                    else:
+                        link = preferenceResult["response"]["sandbox_init_point"]
+                    return link
+                else:
+                    messages.error(request, _('We had trouble communicating with MercadoPago' + str(preferenceResult["response"])))
+                    logger.error('Error on creating payment: ' + str(preferenceResult["response"]))
+            except Exception as e:
+                messages.error(request, _('We had trouble communicating with ' +
+                'MercadoPago ' + str(e) + str(preferenceResult["response"])))
+                logger.exception('Error on creating payment: ' + str(e))
+
         except Exception as e:
-            messages.error(request, _('We had trouble communicating with ' +
-            'MercadoPago ' + str(e) + str(preferenceResult["response"])))
+            messages.error(request, _('We had trouble preparing the order for ' +
+            'MercadoPago ' + str(e)))
             logger.exception('Error on creating payment: ' + str(e))
 
     def checkout_confirm_render(self, request) -> str:

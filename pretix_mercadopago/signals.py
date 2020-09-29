@@ -8,7 +8,11 @@ from django.dispatch import receiver
 from pretix.base.forms import SecretKeySettingsField
 from pretix.base.signals import (
     logentry_display, register_global_settings, register_payment_providers,
-    requiredaction_display,
+    requiredaction_display
+)
+
+from pretix.presale.signals import (
+    contact_form_fields, question_form_fields 
 )
 
 
@@ -49,13 +53,6 @@ def pretixcontrol_action_display(sender, action, request, **kwargs):
 
     data = json.loads(action.data)
 
-#    if action.action_type == 'pretix.plugins.paypal.refund':
-#        template = get_template('pretixplugins/paypal/action_refund.html')
-#    elif action.action_type == 'pretix.plugins.paypal.overpaid':
-#        template = get_template('pretixplugins/paypal/action_overpaid.html')
-#    elif action.action_type == 'pretix.plugins.paypal.double':
-#        template = get_template('pretixplugins/paypal/action_double.html')
-
     ctx = {'data': data, 'event': sender, 'action': action}
     return template.render(ctx, request)
 
@@ -78,4 +75,76 @@ def register_global_settings(sender, **kwargs):
                 ('sandbox', 'Sandbox'),
             ),
         )),
+    ])
+
+@receiver(contact_form_fields, dispatch_uid='mercadopago_contact_form_fields')
+def register_contact_form_fields(sender, **kwargs):
+    return OrderedDict([               
+        ('invoicing_type_tax_id', forms.ChoiceField(
+                label=_('Type of Identification'),
+                help_text=_('All sales will have an associated invoice. ' + 
+                            'VAT identification number of the individual or entity that ' + 
+                            'is the recipient of the invoice. Must be legal on the ' + 
+                            'country stated on the invoice information.' + 
+                            'If you do not have one, you can user your passport.'),
+                widget=forms.RadioSelect,
+                choices=(
+                    ('PASS', _('Passport')),
+                    ('DNI', _('DNI Argentina')),
+                    ('VAT', _('International VAT'))
+                ),
+                required=True
+            )),
+        ('invoicing_tax_id_pass', forms.CharField(
+            widget=forms.TextInput(
+                attrs={
+                    'data-display-dependency': '#id_invoicing_type_tax_id_0',
+                    'data-required-if': '#id_invoicing_type_tax_id_0'
+                }
+            ),
+            label=_('Passport Number'),
+            help_text=_('Write your passport number and letters.'),
+            max_length=9,
+            min_length=9,
+            required=False
+        )),
+        ('invoicing_tax_id_dni', forms.CharField(
+            widget=forms.TextInput(
+                attrs={
+                    'data-display-dependency': '#id_invoicing_type_tax_id_1',
+                    'data-required-if': '#id_invoicing_type_tax_id_1'
+                }
+            ),
+            label=_('DNI Argentina'),
+            help_text=_('Only argentinian ID.'),
+            max_length=20,
+            min_length=4,
+            required=False
+        )),
+        ('invoicing_tax_id_vat', forms.CharField(
+            widget=forms.TextInput(
+                attrs={
+                    'data-display-dependency': '#id_invoicing_type_tax_id_2',
+                    'data-required-if': '#id_invoicing_type_tax_id_2'
+                }
+            ),
+            label=_('VAT Identification Number'),
+            help_text=_('International VAT Identification Number.'),
+            max_length=20,
+            min_length=4,
+            required=False
+        ))
+    ])
+
+
+@receiver(question_form_fields, dispatch_uid='mercadopago_question_form_fields')
+def register_question_form_fields(sender, **kwargs):
+    return OrderedDict([
+        ('invoicing_identifier', forms.CharField(
+            label=_('Attendee ID'),
+            help_text=_('Identifier type and number of the individual that ' + 
+                        'is attending the event. ' + 
+                        'For example: "PASSPORT 123456ABC" or "DNI 1234567X".'),
+            required=False
+        ))
     ])
