@@ -73,115 +73,99 @@ class Mercadopago(BasePaymentProvider):
 
     @property
     def settings_form_fields(self):
-        if self.settings.connect_client_id and not self.settings.secret:
-            # MercadoPago connect
-            if self.settings.connect_user_id:
-                fields = [
-                    ('connect_user_id',
-                     forms.CharField(
-                         label=_('MercadoPago account'),
-                         disabled=True
-                     )),
-                ]
-            else:
-                return {}
-        else:
-            fields = [
-                ('client_id',
-                 forms.CharField(
-                     label=_('Client ID'),
-                     max_length=71,
-                     min_length=10,
-                     help_text=_('{token}<a target="_blank" rel="noopener" '
-                                 'href="{docs_url}">{text}</a>').format(
-                         token=_('puede usar un token el lugar del client_id o '),
-                         text=_('Click here for a tutorial on how to obtain the required keys'),
-                         docs_url='https://www.mercadopago.com.ar/developers/es/guides/faqs/credentials'
-                     )
-                 )),
-                ('secret',
-                 forms.CharField(
-                     label=_('Secret'),
-                     max_length=71,
-                     min_length=10,
-                     required=False
-                 )),
-                ('endpoint',
-                 forms.ChoiceField(
-                     label=_('Endpoint'),
-                     initial='live',
-                     choices=(
-                         ('live', 'Live'),
-                         ('sandbox', 'Sandbox'),
-                     ),
-                 )),
-            ]
+        fields = [
+            ('client_id',
+                forms.CharField(
+                    label=_('Client ID'),
+                    max_length=71,
+                    min_length=10,
+                    help_text=_('{token}<a target="_blank" rel="noopener" '
+                                'href="{docs_url}">{text}</a>').format(
+                        token=_('puede usar un token el lugar del client_id o '),
+                        text=_('Click here for a tutorial on how to obtain the required keys'),
+                        docs_url='https://www.mercadopago.com.ar/developers/es/guides/faqs/credentials'
+                    )
+                )),
+            ('secret',
+                forms.CharField(
+                    label=_('Secret'),
+                    max_length=71,
+                    min_length=10,
+                    required=False
+                )),
+            ('endpoint',
+                forms.ChoiceField(
+                    label=_('Endpoint'),
+                    initial='live',
+                    required=True,
+                    choices=(
+                        ('live', 'Live'),
+                        ('sandbox', 'Sandbox'),
+                    ),
+                )),
+            ('currency',
+                forms.ChoiceField(
+                    label=_('Currency'),
+                    initial='ARS',
+                    required=True,
+                    choices=(
+                        ('ARS', 'ARS'),
+                        ('BRL', 'BRL'),
+                        ('CLP', 'CLP'),
+                        ('MXN', 'MXN'),
+                        ('COP', 'COP'),
+                        ('PEN', 'PEN'),
+                        ('UYU', 'UYU'),
+                    ),
+                )),
+            ('exchange_rate',
+                forms.DecimalField(
+                    label=_('Exchange Rate'),
+                    required=True,
+                    min_value=0,
+                    decimal_places=2,
+                    help_text=_('Exchange rate to apply to the event currency. Use "1" to not apply any exchange rate.')
+                    )
+                ),
+        ]
 
         d = OrderedDict(
             fields + list(super().settings_form_fields.items())
         )
 
-        d.move_to_end('_enabled', False)
         return d
 
     def settings_content_render(self, request):
         settings_content = ""
-        if self.settings.connect_client_id and not self.settings.secret:
-            # Use MercadoPago connect
-            if not self.settings.connect_user_id:
-                settings_content = (
-                    "<p>{}</p>"
-                    "<a href='{}' class='btn btn-primary btn-lg'>{}</a>"
-                ).format(
-                    _('To accept payments via MercadoPagp, you will need an account at MercadoPago. '
-                      'By clicking on the following button, you can either create a new MercadoPago '
-                      'account connect pretix to an existing '
-                      'one.'),
-                    self.get_connect_url(request),
-                    _('Connect with {icon} MercadoPago').format(icon='<i class="fa fa-mercadopago"></i>')
-                )
-            else:
-                settings_content = (
-                    "<button formaction='{}' class='btn btn-danger'>{}</button>"
-                ).format(
-                    reverse('plugins:mercadopago:oauth.disconnect', kwargs={
-                        'organizer': self.event.organizer.slug,
-                        'event': self.event.slug,
-                    }),
-                    _('Disconnect from MercadoPago')
-                )
+        if not self.settings.get('client_id'):
+            settings_content = (
+                "<p>{}</p>"
+                "<a href='{}' class='btn btn-primary btn-lg'>{}</a>"
+            ).format(
+                _('To accept payments via MercadoPagp, you will need an account at MercadoPago. '
+                    'By clicking on the following button, you can either create a new MercadoPago '
+                    'account connect pretix to an existing one.'),
+                self.get_connect_url(request),
+                _('Connect with {icon} MercadoPago').format(icon='<i class="fa fa-mercadopago"></i>')
+            )
         else:
             settings_content = "<div class='alert alert-info'>%s<br /><code>%s</code></div>" % (
                 _('Please configure a MercadoPago Webhook to the following endpoint in order '
-                  'to automatically cancel orders '
-                  'when payments are refunded externally.'),
-                #    'TODO link'
+                  'to automatically cancel orders when payments are refunded externally.'),
                 build_global_uri('plugins:pretix_mercadopago:webhook')
             )
 
-        if self.event.currency not in SUPPORTED_CURRENCIES:
+        if self.event.currency is not self.settings.get('currency'):
             settings_content += (
                 '<br><br><div class="alert alert-warning">%s '
-
                 '<a href="ihttps://www.mercadopago.com.ar/developers/es/reference/merchant_orders/resource/">%s</a>'
                 '</div>'
             ) % (
                 _("MercadoPago does not process payments in your event's currency."),
-                _("Please check this MercadoPago page for a complete list of supported currencies.")
-            )
-
-        if self.event.currency in LOCAL_ONLY_CURRENCIES:
-            settings_content += '<br><br><div class="alert alert-warning">%s''</div>' % (
-                _("Your event's currency is supported by MercadoPago as a payment and balance currency for in-country "
-                  "accounts only. This means, that the receiving as well as the sending MercadoPago account must have "
-                  "been created in the same country and use the same currency. Out of country accounts will not be able "
-                  "to send any payments.")
+                _("Please make sure you are using the proper exchange rate.")
             )
 
         return settings_content
-
-    def is_allowed(self, request: HttpRequest, total: Decimal = None) -> bool:
-        return super().is_allowed(request, total) and self.event.currency in SUPPORTED_CURRENCIES
 
     def init_api(self) -> mercadopago.MP:
         if self.settings.get('client_id') and not self.settings.get('secret'):
@@ -233,6 +217,11 @@ class Mercadopago(BasePaymentProvider):
                 identification_number = form_data.get('invoicing_tax_id_vat', '')
             else:
                 identification_number = form_data.get('invoicing_tax_id_dni', '')
+
+            price = float(payment_obj.amount)
+            if self.settings.get('currency') is not order.event.currency:
+                price = price * float(self.settings.get('exchange_rate'))
+            price = round(price, 2)
             
             preference = {
                 "items": [
@@ -242,8 +231,8 @@ class Mercadopago(BasePaymentProvider):
                                         slug=self.event.slug,
                                         code=order.code),
                         "quantity": 1,
-                        "unit_price": float(payment_obj.amount),
-                        "currency_id": order.event.currency
+                        "unit_price": price,
+                        "currency_id": self.settings.get('currency')
                     }
                 ],
                 "auto_return": 'all',  # solo para las ordenes aprobadas, all
