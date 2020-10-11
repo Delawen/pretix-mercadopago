@@ -222,6 +222,14 @@ class Mercadopago(BasePaymentProvider):
             if self.settings.get('currency') is not order.event.currency:
                 price = price * float(self.settings.get('exchange_rate'))
             price = round(price, 2)
+
+            order_url = build_absolute_uri(request.event, 
+            'presale:event.order', 
+                kwargs={
+                    'order': order.code,
+                    'secret': order.secret
+                }
+            )
             
             preference = {
                 "items": [
@@ -235,11 +243,9 @@ class Mercadopago(BasePaymentProvider):
                         "currency_id": self.settings.get('currency')
                     }
                 ],
-                "auto_return": 'all',  # solo para las ordenes aprobadas, all
+                "auto_return": 'all', 
                 "back_urls": {
-                    "failure":
-                        build_absolute_uri(request.event,
-                            'plugins:pretix_mercadopago:return'),
+                    "failure": order_url,
                     "pending":
                         build_absolute_uri(request.event,
                             'plugins:pretix_mercadopago:return'),
