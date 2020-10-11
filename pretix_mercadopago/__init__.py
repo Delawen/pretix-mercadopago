@@ -9,14 +9,14 @@ except ImportError:
 __version__ = '1.0.0'
 
 
-class PluginMeli(PluginConfig):
+class PluginMercadoPago(PluginConfig):
     name = 'pretix_mercadopago'
     verbose_name = 'MercadoPago Pretix plugin'
 
     class PretixPluginMeta:
         name = gettext_lazy('MercadoPago Pretix plugin')
         author = 'FOSS4G team'
-        description = gettext_lazy('Plugin para MercadoPago como medio de pago para las entradas.')
+        description = gettext_lazy('Payment Provider for MercadoPago.')
         visible = True
         version = __version__
         category = 'PAYMENT'
@@ -38,4 +38,4 @@ class PluginMeli(PluginConfig):
         return errs
 
 
-default_app_config = 'pretix_mercadopago.PluginMeli'
+default_app_config = 'pretix_mercadopago.PluginMercadoPago'
