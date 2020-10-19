@@ -19,7 +19,7 @@ from pretix.control.permissions import event_permission_required
 from pretix.multidomain.urlreverse import eventreverse
 from pretix_mercadopago.payment import Mercadopago
 
-logger = logging.getLogger('pretix.plugins.meli')
+logger = logging.getLogger('pretix.plugins.mercadopago')
 
 
 def admin_view(request, *args, **kwargs):
