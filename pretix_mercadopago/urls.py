@@ -24,5 +24,5 @@ urlpatterns = [
         views.admin_view, name='backend'),
     url(r'^control/event/(?P<organizer>[^/]+)/(?P<event>[^/]+)/mercadopago/disconnect/',
         oauth_disconnect, name='oauth.disconnect'),
-    url(r'^_mercadopago/webhook/$', success, name='webhook'),
+    url(r'^mercadopago/webhook/$', success, name='webhook'),
 ]
