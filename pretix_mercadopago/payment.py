@@ -152,7 +152,7 @@ class Mercadopago(BasePaymentProvider):
             settings_content = "<div class='alert alert-info'>%s<br /><code>%s</code></div>" % (
                 _('Please configure a MercadoPago Webhook to the following endpoint in order '
                   'to automatically cancel orders when payments are refunded externally.'),
-                build_global_uri('plugins:pretix_mercadopago:webhook')
+                build_absolute_uri(request.event, 'plugins:pretix_mercadopago:webhook')
             )
 
         if self.event.currency is not self.settings.get('currency'):
