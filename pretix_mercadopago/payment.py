@@ -352,27 +352,22 @@ class Mercadopago(BasePaymentProvider):
         # Will be called to get an ID for a matching this payment when comparing
         # pretix records with records of an external source.
         # This should return the main transaction ID for your API.
-        sale_id = None
-        for trans in payment.info_data.get('transactions', []):
-            for res in trans.get('related_resources', []):
-                if 'sale' in res and 'id' in res['sale']:
-                    sale_id = res['sale']['id']
-        return sale_id or payment.info_data.get('id', None)
+        return payment.info_data.get('external_reference', None)
 
     def api_payment_details(self, payment: OrderPayment):
-        # Will be called to populate the details parameter of the payment in the REST API.
-        sale_id = None
-        for trans in payment.info_data.get('transactions', []):
-            for res in trans.get('related_resources', []):
-                if 'sale' in res and 'id' in res['sale']:
-                    sale_id = res['sale']['id']
-        return {
-            "payer_email": payment.info_data.get('payer', {}).get('payer_info', {}).get('email'),
-            "payer_id": payment.info_data.get('payer', {}).get('payer_info', {}).get('payer_id'),
-            "cart_id": payment.info_data.get('cart', None),
-            "payment_id": payment.info_data.get('id', None),
-            "sale_id": sale_id,
+        # Will be called to populate the details parameter 
+        # of the payment in the REST API.
+        res = {
+            "payment_info": payment.info
         }
+
+        try:
+            res = json.loads(payment.info)
+        except Exception as e:
+            logger.exception('Could not parse json payment.info')
+
+        return res
+
     ####################################################################
     #                          Utility functions                       #
     ####################################################################
